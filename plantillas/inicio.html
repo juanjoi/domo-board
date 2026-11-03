@@ -1,0 +1,57 @@
+{{define "inicio.html"}}{{template "cabecera" .}}
+<form method="post" action="/buscar">
+  <span class="suave">{{if .UltimaBusqueda.IsZero}}Sin buscar todavía{{else}}Buscado {{fecha .UltimaBusqueda}}{{end}}{{if .Ultimo}} · <code>{{corto .Ultimo}}</code>{{end}}</span>
+  <button>Buscar cambios</button>
+</form>
+</header>
+{{if .EnCurso}}<meta http-equiv="refresh" content="3"><p class="aviso">Hay una actualización en curso.</p>{{end}}
+{{range .Errores}}<p class="error">{{.}}</p>{{end}}
+
+<h2>Stacks</h2>
+<div class="tabla"><table>
+<tr><th>Stack</th><th>Desplegado</th><th>Estado</th><th></th></tr>
+{{range .Stacks}}
+<tr>
+  <td><strong>{{.Nombre}}</strong></td>
+  <td>{{if .Desplegado}}<code>{{corto .Desplegado}}</code>{{else}}<span class="suave">—</span>{{end}}</td>
+  <td>
+    {{if .Desconocido}}<span class="aviso">No desplegado desde el panel</span>
+    {{else if .Cambios}}<span class="aviso">{{len .Cambios}} cambio(s) sin desplegar</span>
+      <ul class="cambios">{{range .Cambios}}<li><code>{{.Commit}}</code> {{.Mensaje}}</li>{{end}}</ul>
+    {{else}}<span class="ok">Al día</span>{{end}}
+    {{with .UltimaTarea}}{{if eq .Estado "fallida"}}<br><a class="error" href="/tareas/{{.ID}}">Falló la última actualización</a>{{end}}{{end}}
+  </td>
+  <td>
+    <form method="post" action="/actualizar">
+      <input type="hidden" name="stack" value="{{.Nombre}}">
+      <input type="hidden" name="commit" value="{{$.Ultimo}}">
+      <button {{if $.EnCurso}}disabled{{end}}>Actualizar</button>
+    </form>
+  </td>
+</tr>
+{{else}}
+<tr><td colspan="4" class="suave">No hay stacks en el repositorio.</td></tr>
+{{end}}
+</table></div>
+
+{{if .Huerfanos}}
+<h2>Ya no están en el repositorio</h2>
+<p class="suave">Se desplegaron desde el panel, pero su carpeta ya no existe. El panel no los borra: hay que pararlos a mano.</p>
+<ul>{{range .Huerfanos}}<li>{{.}}</li>{{end}}</ul>
+{{end}}
+
+<h2>Últimas tareas</h2>
+<div class="tabla"><table>
+<tr><th>Inicio</th><th>Stack</th><th>Commit</th><th>Estado</th></tr>
+{{range .Tareas}}
+<tr>
+  <td><a href="/tareas/{{.ID}}">{{fecha .Inicio}}</a></td>
+  <td>{{.Stack}}</td>
+  <td><code>{{corto .Commit}}</code></td>
+  <td class="{{if eq .Estado "correcta"}}ok{{else if eq .Estado "fallida"}}error{{else}}aviso{{end}}">{{.Estado}}</td>
+</tr>
+{{else}}
+<tr><td colspan="4" class="suave">Todavía no hay tareas.</td></tr>
+{{end}}
+</table></div>
+{{template "pie"}}{{end}}

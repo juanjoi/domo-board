@@ -1,0 +1,27 @@
+{{define "cabecera"}}<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>domo-board</title>
+<style>
+:root { color-scheme: light dark; --borde: #8884; --suave: #888; --ok: #2a8a4a; --aviso: #b7791f; --error: #c53030; }
+body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; line-height: 1.4; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 1.4rem; margin: 0; } h1 a { color: inherit; text-decoration: none; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0 24px; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+.suave { color: var(--suave); font-size: .9rem; }
+.ok { color: var(--ok); } .aviso { color: var(--aviso); } .error { color: var(--error); }
+code { font-size: .9em; }
+button { font: inherit; padding: 4px 12px; cursor: pointer; }
+pre { background: #8881; padding: 12px; overflow-x: auto; white-space: pre-wrap; font-size: .85rem; }
+ul.cambios { margin: 4px 0 0; padding-left: 18px; }
+.tabla { overflow-x: auto; }
+</style>
+</head>
+<body>
+<header><h1><a href="/">domo-board</a></h1>{{end}}
+
+{{define "pie"}}</body>
+</html>{{end}}

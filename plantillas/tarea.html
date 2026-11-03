@@ -1,0 +1,17 @@
+{{define "tarea.html"}}{{template "cabecera" .}}
+</header>
+{{with .Tarea}}
+{{if and (eq .Estado "en curso") (not $.Interrumpida)}}<meta http-equiv="refresh" content="2">{{end}}
+<h2>{{.Stack}} <code>{{corto .Commit}}</code></h2>
+<p>
+  {{if $.Interrumpida}}<span class="error">Interrumpida: el contenedor de la tarea ya no existe</span>
+  {{else if eq .Estado "correcta"}}<span class="ok">Correcta</span>
+  {{else if eq .Estado "fallida"}}<span class="error">Fallida</span>
+  {{else}}<span class="aviso">En curso…</span>{{end}}
+  <span class="suave">· {{fecha .Inicio}}{{if not .Fin.IsZero}} – {{fecha .Fin}}{{end}}</span>
+</p>
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+{{end}}
+<pre>{{if .Log}}{{.Log}}{{else}}Sin salida todavía.{{end}}</pre>
+<p><a href="/">← Volver</a></p>
+{{template "pie"}}{{end}}
