@@ -42,7 +42,7 @@ services:
       - TZ=Europe/Madrid
       - DOMO_REPO=/datos/hub
       - DOMO_DATOS=/datos/domo-board
-    # Solo en el propio servidor; se accede desde fuera con tailscale serve.
+    # Solo en el propio servidor: se publica a través de un proxy con autenticación.
     ports:
       - "127.0.0.1:8080:8080"
     healthcheck:
@@ -59,6 +59,7 @@ services:
 - **La primera vez** se levanta a mano con `docker compose up -d`. Después se actualiza desde el propio panel.
 - **Stacks existentes:** los que se desplegaron antes del panel aparecen como *No desplegado desde el panel* hasta su primera actualización con él.
 - **No fijar `hostname`** en el compose: el panel se encuentra a sí mismo por el nombre de su contenedor para copiar su imagen y sus montajes a la tarea.
+- **Sin login propio:** el panel controla todo el servidor, así que debe quedar detrás de un proxy que pida usuario y contraseña, o accesible solo desde el propio servidor.
 - **No hacer `git pull` a mano** en el clon: el panel restaura cada stack por separado y mantiene el resto como estaba.
 - Si una versión nueva no arranca, se vuelve a la anterior por SSH cambiando la versión en el compose.
 
