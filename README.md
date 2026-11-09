@@ -8,6 +8,7 @@ Aplicación web pequeña para gestionar un hub domótico basado en Docker Compos
 | --- | --- |
 | Ver los stacks y si tienen cambios sin desplegar | Hecho |
 | Actualizar un stack con un botón, incluido el propio panel | Hecho |
+| Enlazar los servicios que cada stack publica en Traefik | Hecho |
 | Activar y desactivar aplicaciones | Más adelante |
 
 ## Actualizar stacks
@@ -17,6 +18,7 @@ Aplicación web pequeña para gestionar un hub domótico basado en Docker Compos
 - **Muestra el estado:** compara el commit de la última actualización correcta de cada stack con el último de la rama, y lista los commits que tocan su carpeta. Avisa de los stacks desplegados que ya no están en el repositorio, sin borrarlos.
 - **Actualiza con un botón:** restaura solo la carpeta de ese stack al commit que se veía en la página y lanza `docker compose up -d --remove-orphans --wait`. Un cambio en otro stack no entra en vigor hasta que se actualiza ese stack.
 - **En un contenedor efímero:** cada actualización corre en un contenedor aparte, con la imagen y los montajes del panel y sin red, para que termine aunque el panel se reinicie al actualizarse a sí mismo. Solo corre una tarea a la vez.
+- **Enlaza los servicios publicados:** lee las reglas de los routers de Traefik en las etiquetas de cada compose. `` Host(`nombre.completo`) `` enlaza a ese nombre; `` HostRegexp(`^nombre\.`) `` enlaza a ese nombre con el dominio desde el que se abre el panel. Si el panel se abre por IP o por un túnel SSH, estos últimos no tienen enlace. Las demás reglas se ignoran.
 - **Sin parámetros libres:** tiene acceso al socket de Docker y, por tanto, control total del servidor, así que solo acepta stacks que existan en el repositorio y rechaza formularios enviados desde otras webs.
 
 ## Uso

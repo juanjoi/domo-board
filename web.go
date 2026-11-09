@@ -120,7 +120,8 @@ func (s *Servidor) buscarCambios(ctx context.Context) {
 
 type FilaStack struct {
 	Nombre      string
-	Desplegado  string // commit de la última tarea correcta, vacío si no hay
+	Enlaces     []Enlace // servicios que publica a través de Traefik
+	Desplegado  string   // commit de la última tarea correcta, vacío si no hay
 	Cambios     []Cambio
 	Desconocido bool // no se sabe qué hay desplegado
 	UltimaTarea *Tarea
@@ -177,6 +178,9 @@ func (s *Servidor) inicio(w http.ResponseWriter, r *http.Request) {
 	desp := desplegados(tareas)
 	for _, nombre := range stacks {
 		fila := FilaStack{Nombre: nombre, Desconocido: true}
+		if compose, err := s.repo.Compose(ctx, v.Ultimo, nombre); err == nil {
+			fila.Enlaces = enlaces(nombresTraefik(compose), r)
+		}
 		if t, ok := ultimas[nombre]; ok {
 			fila.UltimaTarea = &t
 		}

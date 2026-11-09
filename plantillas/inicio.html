@@ -12,7 +12,7 @@
 <tr><th>Stack</th><th>Desplegado</th><th>Estado</th><th></th></tr>
 {{range .Stacks}}
 <tr>
-  <td><strong>{{.Nombre}}</strong></td>
+  <td><strong>{{.Nombre}}</strong>{{range .Enlaces}}<br><a class="suave" href="{{.URL}}" target="_blank" rel="noopener">{{.Texto}}</a>{{end}}</td>
   <td>{{if .Desplegado}}<code>{{corto .Desplegado}}</code>{{else}}<span class="suave">—</span>{{end}}</td>
   <td>
     {{if .Desconocido}}<span class="aviso">No desplegado desde el panel</span>

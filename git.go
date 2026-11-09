@@ -74,6 +74,11 @@ func (r *Repo) Stacks(ctx context.Context, commit string) ([]string, error) {
 	return stacks, nil
 }
 
+// Compose devuelve el docker-compose.yml de un stack en un commit.
+func (r *Repo) Compose(ctx context.Context, commit, stack string) (string, error) {
+	return r.git(ctx, "show", commit+":stacks/"+stack+"/docker-compose.yml")
+}
+
 // Cambios devuelve los commits entre desde y hasta que tocan un stack.
 func (r *Repo) Cambios(ctx context.Context, desde, hasta, stack string) ([]Cambio, error) {
 	salida, err := r.git(ctx, "log", "--format=%h%x09%s", desde+".."+hasta, "--", "stacks/"+stack+"/")

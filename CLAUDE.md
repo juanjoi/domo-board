@@ -15,4 +15,5 @@ Aplicación web para gestionar un hub domótico basado en Docker Compose. La pri
 - `tareas.go`: las tareas, un JSON y un log por tarea en la carpeta de datos.
 - `docker.go` y `aplicar.go`: lanzar la tarea en un contenedor efímero y lo que hace dentro.
 - `web.go` y `plantillas/`: la interfaz, HTML generado en el servidor sin JavaScript.
+- `enlaces.go`: los enlaces a los servicios publicados, sacados de las reglas de Traefik.
 - Pruebas junto a cada fichero (`*_test.go`); usan `git` real en carpetas temporales.

@@ -120,3 +120,25 @@ func TestInicio(t *testing.T) {
 		}
 	}
 }
+
+func TestInicioEnlaces(t *testing.T) {
+	e := nuevoEntorno(t)
+	e.commit("inicial", map[string]string{
+		"stacks/alfa/docker-compose.yml": "services:\n  alfa:\n    labels:\n      - traefik.http.routers.alfa.rule=HostRegexp(`^alfa\\.`)\n",
+		"stacks/beta/docker-compose.yml": "services:\n  beta:\n    image: beta\n",
+	})
+	e.clonar()
+	s := nuevoServidor(Config{Repo: e.clon, Datos: t.TempDir(), Rama: "main"}, (&dockerFalso{}).docker())
+
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.Host = "panel.casa.example"
+	w := httptest.NewRecorder()
+	s.rutas().ServeHTTP(w, r)
+	cuerpo := w.Body.String()
+	if !strings.Contains(cuerpo, `href="http://alfa.casa.example/"`) {
+		t.Errorf("falta el enlace de alfa:\n%s", cuerpo)
+	}
+	if strings.Contains(cuerpo, "beta.casa.example") {
+		t.Errorf("beta no se publica y no debería tener enlace")
+	}
+}
