@@ -10,6 +10,7 @@ Aplicación web pequeña para gestionar un hub domótico basado en Docker Compos
 | Actualizar un stack con un botón, incluido el propio panel | Hecho |
 | Actualizar varios stacks a la vez, en cola y en orden | Hecho |
 | Enlazar los servicios que cada stack publica en Traefik | Hecho |
+| Ver las aplicaciones por categorías, con sus nombres e iconos, a partir de la lista del menú común | Más adelante |
 | Activar y desactivar aplicaciones | Más adelante |
 
 ## Actualizar stacks
