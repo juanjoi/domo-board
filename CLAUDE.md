@@ -17,4 +17,6 @@ Aplicación web para gestionar un hub domótico basado en Docker Compose. La pri
 - `docker.go` y `aplicar.go`: lanzar el contenedor efímero que vacía la cola y lo que hace dentro.
 - `web.go` y `plantillas/`: la interfaz, HTML generado en el servidor sin JavaScript.
 - `enlaces.go`: los enlaces a los servicios publicados, sacados de las reglas de Traefik.
+- `menu.go`: la lista de aplicaciones del menú común (categorías, nombres e iconos).
+- `rejilla.go`: la rejilla de la página principal, con cada aplicación unida a su stack.
 - Pruebas junto a cada fichero (`*_test.go`); usan `git` real en carpetas temporales.

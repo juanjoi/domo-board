@@ -10,8 +10,16 @@ Aplicación web pequeña para gestionar un hub domótico basado en Docker Compos
 | Actualizar un stack con un botón, incluido el propio panel | Hecho |
 | Actualizar varios stacks a la vez, en cola y en orden | Hecho |
 | Enlazar los servicios que cada stack publica en Traefik | Hecho |
-| Ver las aplicaciones por categorías, con sus nombres e iconos, a partir de la lista del menú común | Más adelante |
+| Ver las aplicaciones por categorías, con sus nombres e iconos, a partir de la lista del menú común | Hecho |
 | Activar y desactivar aplicaciones | Más adelante |
+
+## Pantalla principal
+
+- **Rejilla de aplicaciones por categorías:** cada aplicación es su icono con el nombre debajo. Las categorías, los nombres y los iconos salen de la lista del menú común (`/__menu/apps.json`), que el panel pide al servicio del menú por la red interna y guarda 30 segundos. Si el servicio no responde, usa la última lista que consiguió.
+- **Cada aplicación, con su stack:** se une al stack cuyas reglas de Traefik publican su nombre. Al pulsarla se abre la página del stack, con sus enlaces, los cambios sin desplegar, el botón *Actualizar* y sus últimas tareas. Las aplicaciones de la lista que no son de ningún stack del repositorio abren la propia aplicación.
+- **Estado en el icono:** una marca en la esquina si el stack tiene cambios sin desplegar (↑), si falló su última actualización (!) o si no se ha desplegado desde el panel (?). Mientras se actualiza, una animación de carga tapa el icono; en cola, otra más lenta. La página se recarga sola mientras haya tareas en cola o en curso.
+- **Otros stacks:** los que no tienen aplicación en el menú, como los de servicios sin web, van en un último grupo, con su inicial. Sin menú configurado, todos los stacks van en un solo grupo.
+- **Iconos:** se cargan de `/__menu/iconos/` en el mismo nombre del panel, como en cualquier aplicación con el menú. Si no cargan, por ejemplo al entrar por un túnel SSH, se ve la inicial.
 
 ## Actualizar stacks
 
@@ -19,7 +27,7 @@ Aplicación web pequeña para gestionar un hub domótico basado en Docker Compos
 - **Busca cambios sin aplicarlos:** descarga los commits nuevos con `git fetch` al arrancar, cada 15 minutos y con el botón *Buscar cambios*. Nunca hace `git pull`, así que los ficheros del servidor no cambian hasta que se actualiza un stack.
 - **Muestra el estado:** compara el commit de la última actualización correcta de cada stack con el último de la rama, y lista los commits que tocan su carpeta. Avisa de los stacks desplegados que ya no están en el repositorio, sin borrarlos.
 - **Actualiza con un botón:** restaura solo la carpeta de ese stack al commit que se veía en la página y lanza `docker compose up -d --remove-orphans --wait`. Un cambio en otro stack no entra en vigor hasta que se actualiza ese stack.
-- **En cola:** cada actualización entra en una cola y se aplican de una en una. Se pueden pedir mientras otra está en curso, marcar varios stacks y actualizarlos juntos, o actualizar todos los que tienen cambios. Un stack que ya está en cola no se repite.
+- **En cola:** cada actualización entra en una cola y se aplican de una en una. Se pueden pedir mientras otra está en curso o actualizar a la vez todos los que tienen cambios. Un stack que ya está en cola no se repite.
 - **En orden:** los stacks que se piden juntos forman un lote. Dentro del lote van primero los que crean redes que otros del lote usan como externas, según la sección `networks` de cada compose; el resto, por orden alfabético. Si uno falla, se cancelan los siguientes del lote.
 - **En un contenedor efímero:** la cola la vacía un contenedor aparte, con la imagen y los montajes del panel y sin red, para que termine aunque el panel se reinicie al actualizarse a sí mismo. Solo hay uno a la vez; el panel lo arranca cuando hay tareas en cola y no está en marcha.
 - **Enlaza los servicios publicados:** lee las reglas de los routers de Traefik en las etiquetas de cada compose. `` Host(`nombre.completo`) `` enlaza a ese nombre; `` HostRegexp(`^nombre\.`) `` enlaza a ese nombre con el dominio desde el que se abre el panel. Si el panel se abre por IP o por un túnel SSH, estos últimos no tienen enlace. Las demás reglas se ignoran.
@@ -35,6 +43,7 @@ Variables de entorno:
 | `DOMO_DATOS` | Carpeta donde guarda las tareas y sus logs | Obligatoria |
 | `DOMO_RAMA` | Rama que se despliega | `main` |
 | `DOMO_DIRECCION` | Dirección en la que escucha | `:8080` |
+| `DOMO_MENU` | Dirección del servicio del menú común en la red interna, para las categorías, los nombres y los iconos | Sin menú: solo los stacks |
 
 Ejemplo de stack, con rutas de ejemplo:
 
@@ -48,6 +57,7 @@ services:
       - TZ=Europe/Madrid
       - DOMO_REPO=/datos/hub
       - DOMO_DATOS=/datos/domo-board
+      - DOMO_MENU=http://domo-menu:8080
     # Solo en el propio servidor: se publica a través de un proxy inverso.
     ports:
       - "127.0.0.1:8080:8080"

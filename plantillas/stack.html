@@ -1,0 +1,46 @@
+{{define "stack.html"}}{{template "cabecera" .}}
+</header>
+{{if .Ocupado}}<meta http-equiv="refresh" content="3">{{end}}
+{{range .Errores}}<p class="error">{{.}}</p>{{end}}
+{{with .Fila}}
+<div class="ficha">
+  {{template "icono" $.Mosaico}}
+  <div>
+    <h2>{{$.Mosaico.Titulo}}</h2>
+    <span class="suave">Stack <code>{{.Nombre}}</code>{{if .Desplegado}} · desplegado <code>{{corto .Desplegado}}</code>{{end}}</span>
+    {{range .Enlaces}}<br><a href="{{.URL}}" target="_blank" rel="noopener">{{.Texto}}</a>{{end}}
+  </div>
+</div>
+
+<p>
+  {{if eq .Activo "en curso"}}<span class="aviso">Actualizando…</span>
+  {{else if eq .Activo "en cola"}}<span class="aviso">En cola: empieza cuando terminen las anteriores</span>
+  {{else if .Desconocido}}<span class="aviso">No desplegado desde el panel: se sabrá qué tiene tras la primera actualización</span>
+  {{else if .Cambios}}<span class="aviso">{{len .Cambios}} cambio(s) sin desplegar</span>
+  {{else}}<span class="ok">Al día</span>{{end}}
+  {{with .UltimaTarea}}{{if eq .Estado "fallida"}}<br><a class="error" href="/tareas/{{.ID}}">Falló la última actualización</a>{{end}}{{end}}
+</p>
+{{if .Cambios}}<ul class="cambios">{{range .Cambios}}<li><code>{{.Commit}}</code> {{.Mensaje}}</li>{{end}}</ul>{{end}}
+
+<form method="post" action="/actualizar" class="barra" style="margin-top:16px">
+  <input type="hidden" name="stack" value="{{.Nombre}}"><input type="hidden" name="commit" value="{{$.Ultimo}}">
+  <button class="principal"{{if .Activo}} disabled{{end}}>Actualizar</button>
+  <span class="suave">Al último commit, <code>{{corto $.Ultimo}}</code>.</span>
+</form>
+{{end}}
+
+<h2>Últimas tareas</h2>
+<div class="tabla"><table>
+<tr><th>Inicio</th><th>Commit</th><th>Estado</th></tr>
+{{range .Tareas}}
+<tr>
+  <td><a href="/tareas/{{.ID}}">{{fecha .Inicio}}</a></td>
+  <td><code>{{corto .Commit}}</code></td>
+  <td class="{{if eq .Estado "correcta"}}ok{{else if or (eq .Estado "fallida") (eq .Estado "cancelada")}}error{{else}}aviso{{end}}">{{.Estado}}</td>
+</tr>
+{{else}}
+<tr><td colspan="3" class="suave">Todavía no hay tareas.</td></tr>
+{{end}}
+</table></div>
+<p><a href="/">← Volver</a></p>
+{{template "pie"}}{{end}}

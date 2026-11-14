@@ -15,5 +15,5 @@
 {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
 {{end}}
 <pre>{{if .Log}}{{.Log}}{{else}}Sin salida todavía.{{end}}</pre>
-<p><a href="/">← Volver</a></p>
+<p><a href="/stacks/{{.Tarea.Stack}}">← Volver a {{.Tarea.Stack}}</a></p>
 {{template "pie"}}{{end}}

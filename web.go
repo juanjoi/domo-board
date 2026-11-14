@@ -31,6 +31,7 @@ type Servidor struct {
 	repo       *Repo
 	reg        Registro
 	docker     *Docker
+	menu       *Menu
 	plantillas *template.Template
 	ahora      func() time.Time
 
@@ -48,6 +49,7 @@ func nuevoServidor(cfg Config, docker *Docker) *Servidor {
 		repo:   &Repo{Dir: cfg.Repo, Rama: cfg.Rama},
 		reg:    Registro{Dir: filepath.Join(cfg.Datos, "tareas")},
 		docker: docker,
+		menu:   nuevoMenu(cfg.Menu),
 		plantillas: template.Must(template.New("").Funcs(template.FuncMap{
 			"corto": corto,
 			"fecha": func(t time.Time) string { return t.Local().Format("02/01/2006 15:04") },
@@ -75,6 +77,7 @@ func servir(ctx context.Context, cfg Config) error {
 func (s *Servidor) rutas() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.inicio)
+	mux.HandleFunc("GET /stacks/{nombre}", s.verStack)
 	mux.HandleFunc("GET /tareas/{id}", s.verTarea)
 	mux.HandleFunc("POST /buscar", s.buscar)
 	mux.HandleFunc("POST /actualizar", s.actualizar)
@@ -166,6 +169,7 @@ func (s *Servidor) buscarCambios(ctx context.Context) {
 type FilaStack struct {
 	Nombre      string
 	Activo      string   // en cola o en curso, si tiene una tarea pendiente
+	Nombres     []string // nombres que publica en Traefik
 	Enlaces     []Enlace // servicios que publica a través de Traefik
 	Desplegado  string   // commit de la última tarea correcta, vacío si no hay
 	Cambios     []Cambio
@@ -173,21 +177,22 @@ type FilaStack struct {
 	UltimaTarea *Tarea
 }
 
-type VistaInicio struct {
+// Estado es lo que el panel sabe de los stacks en un momento dado.
+type Estado struct {
 	Ultimo         string
-	Stacks         []FilaStack
+	Filas          []FilaStack
 	Huerfanos      []string
 	ConCambios     []string // stacks con cambios sin desplegar
-	EnCurso        bool
-	Ocupado        bool // hay tareas en cola o en curso: la página se recarga sola
 	Tareas         []Tarea
+	Ocupado        bool // hay tareas en cola o en curso: la página se recarga sola
 	UltimaBusqueda time.Time
 	Errores        []string
 }
 
-func (s *Servidor) inicio(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	v := VistaInicio{}
+// estado reúne las tareas, el último commit y lo que ha cambiado en cada stack.
+// Con solo, se limita a ese stack.
+func (s *Servidor) estado(ctx context.Context, r *http.Request, solo string) Estado {
+	v := Estado{}
 	s.mu.Lock()
 	v.UltimaBusqueda = s.ultimaBusqueda
 	if s.errorBusqueda != "" {
@@ -196,7 +201,6 @@ func (s *Servidor) inicio(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	enCurso, err := s.docker.TareaEnCurso(ctx)
-	v.EnCurso = enCurso
 	if err != nil {
 		v.Errores = append(v.Errores, err.Error())
 	}
@@ -204,15 +208,14 @@ func (s *Servidor) inicio(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		v.Errores = append(v.Errores, err.Error())
 	}
-	v.Tareas = tareas[:min(len(tareas), numTareas)]
+	v.Tareas = tareas
 	act := activos(tareas)
-	v.Ocupado = v.EnCurso || len(act) > 0
+	v.Ocupado = enCurso || len(act) > 0
 
 	v.Ultimo, err = s.repo.Ultimo(ctx)
 	if err != nil {
 		v.Errores = append(v.Errores, err.Error())
-		s.pintar(w, "inicio.html", v)
-		return
+		return v
 	}
 	stacks, err := s.repo.Stacks(ctx, v.Ultimo)
 	if err != nil {
@@ -227,9 +230,13 @@ func (s *Servidor) inicio(w http.ResponseWriter, r *http.Request) {
 	}
 	desp := desplegados(tareas)
 	for _, nombre := range stacks {
+		if solo != "" && nombre != solo {
+			continue
+		}
 		fila := FilaStack{Nombre: nombre, Desconocido: true, Activo: act[nombre]}
 		if compose, err := s.repo.Compose(ctx, v.Ultimo, nombre); err == nil {
-			fila.Enlaces = enlaces(nombresTraefik(compose), r)
+			fila.Nombres = nombresTraefik(compose)
+			fila.Enlaces = enlaces(fila.Nombres, r)
 		}
 		if t, ok := ultimas[nombre]; ok {
 			fila.UltimaTarea = &t
@@ -242,15 +249,76 @@ func (s *Servidor) inicio(w http.ResponseWriter, r *http.Request) {
 		if len(fila.Cambios) > 0 && fila.Activo == "" {
 			v.ConCambios = append(v.ConCambios, nombre)
 		}
-		v.Stacks = append(v.Stacks, fila)
+		v.Filas = append(v.Filas, fila)
 	}
-	for nombre := range desp {
-		if !slices.Contains(stacks, nombre) {
-			v.Huerfanos = append(v.Huerfanos, nombre)
+	if solo == "" {
+		for nombre := range desp {
+			if !slices.Contains(stacks, nombre) {
+				v.Huerfanos = append(v.Huerfanos, nombre)
+			}
+		}
+		slices.Sort(v.Huerfanos)
+	}
+	return v
+}
+
+type VistaInicio struct {
+	Estado
+	Grupos []Grupo
+}
+
+func (s *Servidor) inicio(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	v := VistaInicio{Estado: s.estado(ctx, r, "")}
+	lista, err := s.menu.Lista(ctx)
+	if err != nil {
+		v.Errores = append(v.Errores, err.Error())
+	}
+	v.Grupos = agrupar(lista, v.Filas, r)
+	s.pintar(w, "inicio.html", v)
+}
+
+type VistaStack struct {
+	Estado
+	Fila    FilaStack
+	Mosaico Mosaico
+	Tareas  []Tarea // las últimas de este stack
+}
+
+// verStack muestra un stack: sus enlaces, los cambios sin desplegar, el botón
+// para actualizarlo y sus últimas tareas.
+func (s *Servidor) verStack(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	nombre := r.PathValue("nombre")
+	if !nombreValido.MatchString(nombre) {
+		http.NotFound(w, r)
+		return
+	}
+	v := VistaStack{Estado: s.estado(ctx, r, nombre)}
+	if len(v.Filas) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	v.Fila = v.Filas[0]
+	v.Mosaico = mosaicoDe(v.Fila, nombre, "")
+	// El nombre y el icono, de la primera aplicación del stack en el menú.
+	lista, _ := s.menu.Lista(ctx)
+buscar:
+	for _, g := range agrupar(lista, v.Filas, r) {
+		for _, m := range g.Mosaicos {
+			if m.Stack == nombre && g.Nombre != grupoSinApp {
+				v.Mosaico = m
+				break buscar
+			}
 		}
 	}
-	slices.Sort(v.Huerfanos)
-	s.pintar(w, "inicio.html", v)
+	v.Mosaico.Grande = true
+	for _, t := range v.Estado.Tareas {
+		if t.Stack == nombre && len(v.Tareas) < numTareas {
+			v.Tareas = append(v.Tareas, t)
+		}
+	}
+	s.pintar(w, "stack.html", v)
 }
 
 func (s *Servidor) buscar(w http.ResponseWriter, r *http.Request) {

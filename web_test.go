@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 // dockerFalso registra las órdenes en vez de ejecutarlas.
@@ -105,6 +107,16 @@ func TestActualizarRechaza(t *testing.T) {
 	}
 }
 
+func pedir(s *Servidor, ruta, host string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(http.MethodGet, ruta, nil)
+	if host != "" {
+		r.Host = host
+	}
+	w := httptest.NewRecorder()
+	s.rutas().ServeHTTP(w, r)
+	return w
+}
+
 func TestInicio(t *testing.T) {
 	s, _, commit := servidorDePrueba(t)
 	// Un stack desplegado que ya no está en el repositorio aparece como huérfano.
@@ -112,35 +124,102 @@ func TestInicio(t *testing.T) {
 	viejo.Estado = Correcta
 	s.reg.Guardar(viejo)
 
-	w := httptest.NewRecorder()
-	s.rutas().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
-	cuerpo := w.Body.String()
-	for _, esperado := range []string{"alfa", "No desplegado desde el panel", "Ya no están en el repositorio", "viejo", commit, `form="lote" name="stack" value="alfa"`, "Actualizar seleccionados"} {
+	cuerpo := pedir(s, "/", "").Body.String()
+	// Sin menú, todos los stacks van en un solo grupo.
+	for _, esperado := range []string{"<h2>Stacks</h2>", `href="/stacks/alfa"`, "No desplegado desde el panel", "Ya no están en el repositorio", "viejo", corto(commit)} {
 		if !strings.Contains(cuerpo, esperado) {
 			t.Errorf("falta %q en la página", esperado)
 		}
 	}
+	if strings.Contains(cuerpo, "Últimas tareas") {
+		t.Errorf("la página principal no debería mostrar las últimas tareas")
+	}
 }
 
-func TestInicioEnlaces(t *testing.T) {
+// menuDePrueba sirve una lista del menú como la del servicio domo-menu.
+func menuDePrueba(t *testing.T, json string) string {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/__menu/apps.json" {
+			http.NotFound(w, r)
+			return
+		}
+		io.WriteString(w, json)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func TestInicioConMenu(t *testing.T) {
+	e := nuevoEntorno(t)
+	regla := func(n string) string {
+		return "services:\n  " + n + ":\n    labels:\n      - traefik.http.routers." + n + ".rule=HostRegexp(`^" + n + "\\.`)\n"
+	}
+	primero := e.commit("inicial", map[string]string{
+		"stacks/alfa/docker-compose.yml":  regla("alfa"),
+		"stacks/beta/docker-compose.yml":  regla("beta"),
+		"stacks/gamma/docker-compose.yml": "services:\n  gamma:\n    image: gamma\n",
+	})
+	ultimo := e.commit("cambia beta", map[string]string{"stacks/beta/docker-compose.yml": regla("beta") + "    image: beta:2\n"})
+	e.clonar()
+	menu := menuDePrueba(t, `{"categories":["Familia","Domótica"],"apps":[
+		{"name":"beta","title":"Beta","category":"Domótica","icon":"/__menu/iconos/beta.svg"},
+		{"name":"alfa","title":"Alfa","category":"Familia","icon":"https://otro.example/alfa.svg"},
+		{"name":"externa","title":"Externa","category":"Rara"}]}`)
+	s := nuevoServidor(Config{Repo: e.clon, Datos: t.TempDir(), Rama: "main", Menu: menu}, (&dockerFalso{}).docker())
+	for _, st := range []string{"alfa", "beta"} {
+		ta := nuevaTarea(st, primero, s.ahora())
+		ta.Estado = Correcta
+		s.reg.Guardar(ta)
+	}
+	// alfa se está actualizando.
+	enCurso := nuevaTarea("alfa", ultimo, s.ahora().Add(time.Second))
+	enCurso.Estado = EnCurso
+	s.reg.Guardar(enCurso)
+
+	cuerpo := pedir(s, "/", "panel.casa.example").Body.String()
+	orden := []string{"<h2>Familia</h2>", "Alfa", "<h2>Domótica</h2>", "Beta", "<h2>Otras</h2>", "Externa", "<h2>Otros stacks</h2>", "gamma"}
+	resto := cuerpo
+	for _, esperado := range orden {
+		i := strings.Index(resto, esperado)
+		if i < 0 {
+			t.Fatalf("falta %q, o no va en su orden:\n%s", esperado, cuerpo)
+		}
+		resto = resto[i:]
+	}
+	for _, esperado := range []string{
+		`<span class="carga"></span>`,                         // alfa, actualizando
+		`<span class="marca pendiente"`,                       // beta, con cambios
+		`<img src="/__menu/iconos/beta.svg"`,                  // icono del menú
+		`href="http://externa.casa.example/" target="_blank"`, // sin stack: abre la aplicación
+		`Actualizar todos los pendientes (1)`,
+	} {
+		if !strings.Contains(cuerpo, esperado) {
+			t.Errorf("falta %q en la página", esperado)
+		}
+	}
+	if strings.Contains(cuerpo, "otro.example") {
+		t.Errorf("no debería usar iconos de fuera del servicio del menú")
+	}
+}
+
+func TestStack(t *testing.T) {
 	e := nuevoEntorno(t)
 	e.commit("inicial", map[string]string{
 		"stacks/alfa/docker-compose.yml": "services:\n  alfa:\n    labels:\n      - traefik.http.routers.alfa.rule=HostRegexp(`^alfa\\.`)\n",
-		"stacks/beta/docker-compose.yml": "services:\n  beta:\n    image: beta\n",
 	})
 	e.clonar()
 	s := nuevoServidor(Config{Repo: e.clon, Datos: t.TempDir(), Rama: "main"}, (&dockerFalso{}).docker())
 
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.Host = "panel.casa.example"
-	w := httptest.NewRecorder()
-	s.rutas().ServeHTTP(w, r)
-	cuerpo := w.Body.String()
-	if !strings.Contains(cuerpo, `href="http://alfa.casa.example/"`) {
-		t.Errorf("falta el enlace de alfa:\n%s", cuerpo)
+	cuerpo := pedir(s, "/stacks/alfa", "panel.casa.example").Body.String()
+	for _, esperado := range []string{`href="http://alfa.casa.example/"`, `name="stack" value="alfa"`, "Últimas tareas", "Todavía no hay tareas"} {
+		if !strings.Contains(cuerpo, esperado) {
+			t.Errorf("falta %q en la página:\n%s", esperado, cuerpo)
+		}
 	}
-	if strings.Contains(cuerpo, "beta.casa.example") {
-		t.Errorf("beta no se publica y no debería tener enlace")
+	for _, ruta := range []string{"/stacks/omega", "/stacks/..%2Falfa"} {
+		if w := pedir(s, ruta, ""); w.Code != http.StatusNotFound {
+			t.Errorf("%s: código %d, quería 404", ruta, w.Code)
+		}
 	}
 }
 

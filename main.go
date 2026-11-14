@@ -19,6 +19,7 @@ type Config struct {
 	Datos     string // carpeta de datos del panel
 	Rama      string
 	Direccion string
+	Menu      string // dirección del servicio del menú común, opcional
 }
 
 func leerConfig() (Config, error) {
@@ -27,6 +28,7 @@ func leerConfig() (Config, error) {
 		Datos:     os.Getenv("DOMO_DATOS"),
 		Rama:      valorOPorDefecto(os.Getenv("DOMO_RAMA"), "main"),
 		Direccion: valorOPorDefecto(os.Getenv("DOMO_DIRECCION"), ":8080"),
+		Menu:      os.Getenv("DOMO_MENU"),
 	}
 	if c.Repo == "" || c.Datos == "" {
 		return c, fmt.Errorf("faltan DOMO_REPO o DOMO_DATOS")
