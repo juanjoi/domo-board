@@ -10,10 +10,11 @@ Aplicación web para gestionar un hub domótico basado en Docker Compose. La pri
 
 ## Estructura
 
-- `main.go`: configuración y órdenes (`servir`, `aplicar <tarea>`).
+- `main.go`: configuración y órdenes (`servir`, `aplicar`).
 - `git.go`: el clon del repositorio de despliegue (buscar, stacks, cambios, restaurar).
-- `tareas.go`: las tareas, un JSON y un log por tarea en la carpeta de datos.
-- `docker.go` y `aplicar.go`: lanzar la tarea en un contenedor efímero y lo que hace dentro.
+- `tareas.go`: las tareas y sus lotes, un JSON y un log por tarea en la carpeta de datos.
+- `orden.go`: el orden de un lote según las redes que crea y usa cada stack.
+- `docker.go` y `aplicar.go`: lanzar el contenedor efímero que vacía la cola y lo que hace dentro.
 - `web.go` y `plantillas/`: la interfaz, HTML generado en el servidor sin JavaScript.
 - `enlaces.go`: los enlaces a los servicios publicados, sacados de las reglas de Traefik.
 - Pruebas junto a cada fichero (`*_test.go`); usan `git` real en carpetas temporales.

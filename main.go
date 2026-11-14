@@ -57,10 +57,10 @@ func main() {
 	switch {
 	case orden == "servir" && len(os.Args) <= 2:
 		err = servir(ctx, cfg)
-	case orden == "aplicar" && len(os.Args) == 3:
-		err = aplicar(ctx, cfg, os.Args[2])
+	case orden == "aplicar" && len(os.Args) == 2:
+		err = aplicar(ctx, cfg)
 	default:
-		err = fmt.Errorf("uso: domo-board [servir | aplicar <tarea>]")
+		err = fmt.Errorf("uso: domo-board [servir | aplicar]")
 	}
 	if err != nil {
 		log.Fatal(err)

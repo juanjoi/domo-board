@@ -4,35 +4,41 @@
   <button>Buscar cambios</button>
 </form>
 </header>
-{{if .EnCurso}}<meta http-equiv="refresh" content="3"><p class="aviso">Hay una actualización en curso.</p>{{end}}
+{{if .Ocupado}}<meta http-equiv="refresh" content="3"><p class="aviso">Hay actualizaciones en curso o en cola.</p>{{end}}
 {{range .Errores}}<p class="error">{{.}}</p>{{end}}
 
 <h2>Stacks</h2>
+{{/* Cada botón usa su propio formulario (atributo form), porque los formularios no se pueden anidar. */}}
+<form id="lote" method="post" action="/actualizar"><input type="hidden" name="commit" value="{{.Ultimo}}"></form>
+{{range .Stacks}}<form id="f-{{.Nombre}}" method="post" action="/actualizar"><input type="hidden" name="stack" value="{{.Nombre}}"><input type="hidden" name="commit" value="{{$.Ultimo}}"></form>{{end}}
+{{if .ConCambios}}<form id="todos" method="post" action="/actualizar">{{range .ConCambios}}<input type="hidden" name="stack" value="{{.}}">{{end}}<input type="hidden" name="commit" value="{{.Ultimo}}"></form>{{end}}
 <div class="tabla"><table>
-<tr><th>Stack</th><th>Desplegado</th><th>Estado</th><th></th></tr>
+<tr><th></th><th>Stack</th><th>Desplegado</th><th>Estado</th><th></th></tr>
 {{range .Stacks}}
 <tr>
+  <td><input type="checkbox" form="lote" name="stack" value="{{.Nombre}}" aria-label="Seleccionar {{.Nombre}}"></td>
   <td><strong>{{.Nombre}}</strong>{{range .Enlaces}}<br><a class="suave" href="{{.URL}}" target="_blank" rel="noopener">{{.Texto}}</a>{{end}}</td>
   <td>{{if .Desplegado}}<code>{{corto .Desplegado}}</code>{{else}}<span class="suave">—</span>{{end}}</td>
   <td>
+    {{if eq .Activo "en curso"}}<span class="aviso">Actualizando…</span><br>
+    {{else if eq .Activo "en cola"}}<span class="aviso">En cola</span><br>{{end}}
     {{if .Desconocido}}<span class="aviso">No desplegado desde el panel</span>
     {{else if .Cambios}}<span class="aviso">{{len .Cambios}} cambio(s) sin desplegar</span>
       <ul class="cambios">{{range .Cambios}}<li><code>{{.Commit}}</code> {{.Mensaje}}</li>{{end}}</ul>
     {{else}}<span class="ok">Al día</span>{{end}}
     {{with .UltimaTarea}}{{if eq .Estado "fallida"}}<br><a class="error" href="/tareas/{{.ID}}">Falló la última actualización</a>{{end}}{{end}}
   </td>
-  <td>
-    <form method="post" action="/actualizar">
-      <input type="hidden" name="stack" value="{{.Nombre}}">
-      <input type="hidden" name="commit" value="{{$.Ultimo}}">
-      <button {{if $.EnCurso}}disabled{{end}}>Actualizar</button>
-    </form>
-  </td>
+  <td><button form="f-{{.Nombre}}" {{if eq .Activo "en cola"}}disabled{{end}}>Actualizar</button></td>
 </tr>
 {{else}}
-<tr><td colspan="4" class="suave">No hay stacks en el repositorio.</td></tr>
+<tr><td colspan="5" class="suave">No hay stacks en el repositorio.</td></tr>
 {{end}}
 </table></div>
+{{if .Stacks}}<p class="acciones">
+  <button form="lote">Actualizar seleccionados</button>
+  {{if .ConCambios}}<button form="todos">Actualizar todos los que tienen cambios ({{len .ConCambios}})</button>{{end}}
+  <span class="suave">Se aplican de uno en uno; primero los que crean redes que usan los demás. Si uno falla, se cancelan los siguientes del mismo lote.</span>
+</p>{{end}}
 
 {{if .Huerfanos}}
 <h2>Ya no están en el repositorio</h2>
@@ -48,7 +54,7 @@
   <td><a href="/tareas/{{.ID}}">{{fecha .Inicio}}</a></td>
   <td>{{.Stack}}</td>
   <td><code>{{corto .Commit}}</code></td>
-  <td class="{{if eq .Estado "correcta"}}ok{{else if eq .Estado "fallida"}}error{{else}}aviso{{end}}">{{.Estado}}</td>
+  <td class="{{if eq .Estado "correcta"}}ok{{else if or (eq .Estado "fallida") (eq .Estado "cancelada")}}error{{else}}aviso{{end}}">{{.Estado}}</td>
 </tr>
 {{else}}
 <tr><td colspan="4" class="suave">Todavía no hay tareas.</td></tr>

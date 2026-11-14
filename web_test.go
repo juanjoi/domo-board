@@ -69,7 +69,7 @@ func TestActualizar(t *testing.T) {
 		t.Fatalf("código %d, lanzadas %d: %s", w.Code, falso.lanzadas(), w.Body)
 	}
 	tareas, _ := s.reg.Todas()
-	if len(tareas) != 1 || tareas[0].Stack != "alfa" || tareas[0].Commit != commit || tareas[0].Estado != EnCurso {
+	if len(tareas) != 1 || tareas[0].Stack != "alfa" || tareas[0].Commit != commit || tareas[0].Estado != EnCola {
 		t.Errorf("tareas = %v", tareas)
 	}
 	if !strings.HasSuffix(w.Header().Get("Location"), tareas[0].ID) {
@@ -91,7 +91,8 @@ func TestActualizarRechaza(t *testing.T) {
 		{"stack inexistente", url.Values{"stack": {"omega"}, "commit": {commit}}, nil, false, http.StatusBadRequest},
 		{"nombre con ruta", url.Values{"stack": {"../alfa"}, "commit": {commit}}, nil, false, http.StatusBadRequest},
 		{"commit no válido", url.Values{"stack": {"alfa"}, "commit": {"main"}}, nil, false, http.StatusBadRequest},
-		{"tarea en curso", url.Values{"stack": {"alfa"}, "commit": {commit}}, nil, true, http.StatusConflict},
+		{"sin stacks", url.Values{"commit": {commit}}, nil, false, http.StatusBadRequest},
+		{"uno bueno y otro no", url.Values{"stack": {"alfa", "omega"}, "commit": {commit}}, nil, false, http.StatusBadRequest},
 	}
 	for _, c := range casos {
 		falso.enCurso = c.enCurso
@@ -114,7 +115,7 @@ func TestInicio(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.rutas().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
 	cuerpo := w.Body.String()
-	for _, esperado := range []string{"alfa", "No desplegado desde el panel", "Ya no están en el repositorio", "viejo", commit} {
+	for _, esperado := range []string{"alfa", "No desplegado desde el panel", "Ya no están en el repositorio", "viejo", commit, `form="lote" name="stack" value="alfa"`, "Actualizar seleccionados"} {
 		if !strings.Contains(cuerpo, esperado) {
 			t.Errorf("falta %q en la página", esperado)
 		}
@@ -140,5 +141,46 @@ func TestInicioEnlaces(t *testing.T) {
 	}
 	if strings.Contains(cuerpo, "beta.casa.example") {
 		t.Errorf("beta no se publica y no debería tener enlace")
+	}
+}
+
+func TestActualizarVarios(t *testing.T) {
+	e := nuevoEntorno(t)
+	commit := e.commit("inicial", map[string]string{
+		// alfa usa la red que crea beta: beta tiene que ir antes.
+		"stacks/alfa/docker-compose.yml":  "services:\n  a:\n    image: a\nnetworks:\n  r:\n    name: red\n    external: true\n",
+		"stacks/beta/docker-compose.yml":  "services:\n  b:\n    image: b\nnetworks:\n  r:\n    name: red\n",
+		"stacks/gamma/docker-compose.yml": "services:\n  g:\n    image: g\n",
+	})
+	e.clonar()
+	falso := &dockerFalso{}
+	s := nuevoServidor(Config{Repo: e.clon, Datos: t.TempDir(), Rama: "main"}, falso.docker())
+
+	w := enviar(s, "/actualizar", url.Values{"stack": {"gamma", "alfa", "beta", "alfa"}, "commit": {commit}}, nil)
+	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/" || falso.lanzadas() != 1 {
+		t.Fatalf("código %d, Location %q, lanzadas %d", w.Code, w.Header().Get("Location"), falso.lanzadas())
+	}
+	tareas, _ := s.reg.Todas()
+	var orden []string
+	for _, ta := range pendientes(tareas) {
+		orden = append(orden, ta.Stack)
+		if ta.Lote != pendientes(tareas)[0].Lote {
+			t.Errorf("%s no está en el mismo lote", ta.Stack)
+		}
+	}
+	if strings.Join(orden, ",") != "beta,alfa,gamma" {
+		t.Errorf("orden = %v", orden)
+	}
+
+	// Con el contenedor de tareas en marcha se encola sin lanzar otro, y un
+	// stack que ya está en cola no se repite.
+	falso.enCurso = true
+	enviar(s, "/actualizar", url.Values{"stack": {"alfa"}, "commit": {commit}}, nil)
+	if falso.lanzadas() != 1 {
+		t.Errorf("lanzadas = %d, no debería lanzar otro contenedor", falso.lanzadas())
+	}
+	tareas, _ = s.reg.Todas()
+	if len(tareas) != 3 {
+		t.Errorf("hay %d tareas, alfa no debería repetirse", len(tareas))
 	}
 }

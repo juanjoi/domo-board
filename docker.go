@@ -11,7 +11,7 @@ import (
 )
 
 // nombreTarea es fijo: Docker no deja crear dos contenedores con el mismo
-// nombre, así que nunca corren dos tareas a la vez.
+// nombre, así que nunca hay dos contenedores vaciando la cola a la vez.
 const nombreTarea = "domo-board-tarea"
 
 // Docker usa el cliente de Docker de la imagen.
@@ -33,7 +33,7 @@ func nuevoDocker() *Docker {
 	}}
 }
 
-// TareaEnCurso dice si el contenedor de una tarea está en marcha.
+// TareaEnCurso dice si el contenedor de las tareas está en marcha.
 func (d *Docker) TareaEnCurso(ctx context.Context) (bool, error) {
 	salida, err := d.ejecutar(ctx, "ps", "-q", "--filter", "name=^"+nombreTarea+"$")
 	return salida != "", err
@@ -52,10 +52,11 @@ type contenedor struct {
 	Mounts []montaje
 }
 
-// Lanzar arranca la tarea en un contenedor efímero con la imagen y los
-// montajes del propio panel. Así la tarea termina aunque actualice el panel
-// y este se reinicie. No necesita red: los commits ya están descargados.
-func (d *Docker) Lanzar(ctx context.Context, cfg Config, id string) error {
+// Lanzar arranca un contenedor efímero, con la imagen y los montajes del
+// propio panel, que aplica las tareas en cola. Así terminan aunque una
+// actualice el panel y este se reinicie. No necesita red: los commits ya
+// están descargados.
+func (d *Docker) Lanzar(ctx context.Context, cfg Config) error {
 	yo, err := os.Hostname()
 	if err != nil {
 		return err
@@ -68,11 +69,11 @@ func (d *Docker) Lanzar(ctx context.Context, cfg Config, id string) error {
 	if err := json.Unmarshal([]byte(salida), &inspeccion); err != nil || len(inspeccion) != 1 {
 		return fmt.Errorf("respuesta inesperada de docker inspect: %v", err)
 	}
-	_, err = d.ejecutar(ctx, argumentosTarea(inspeccion[0], cfg, id)...)
+	_, err = d.ejecutar(ctx, argumentosTarea(inspeccion[0], cfg)...)
 	return err
 }
 
-func argumentosTarea(c contenedor, cfg Config, id string) []string {
+func argumentosTarea(c contenedor, cfg Config) []string {
 	args := []string{"run", "-d", "--rm", "--name", nombreTarea, "--network", "none"}
 	for _, m := range c.Mounts {
 		origen := m.Source
@@ -90,6 +91,6 @@ func argumentosTarea(c contenedor, cfg Config, id string) []string {
 		"-e", "DOMO_DATOS="+cfg.Datos,
 		"-e", "DOMO_RAMA="+cfg.Rama,
 		"-e", "TZ="+os.Getenv("TZ"),
-		c.Config.Image, "aplicar", id)
+		c.Config.Image, "aplicar")
 	return args
 }

@@ -12,23 +12,28 @@ import (
 )
 
 const (
-	EnCurso  = "en curso"
-	Correcta = "correcta"
-	Fallida  = "fallida"
+	EnCola    = "en cola"
+	EnCurso   = "en curso"
+	Correcta  = "correcta"
+	Fallida   = "fallida"
+	Cancelada = "cancelada"
 )
 
 var idValido = regexp.MustCompile(`^\d{8}T\d{6}Z-[a-z0-9][a-z0-9_-]*$`)
 
 // Tarea es una actualización de un stack. Cada una se guarda en su propio JSON,
 // junto a su log, para que el panel y el contenedor de la tarea no escriban en
-// el mismo fichero.
+// el mismo fichero. Las tareas que se piden juntas forman un lote: se aplican
+// en orden y, si una falla, se cancelan las siguientes del lote.
 type Tarea struct {
 	ID     string    `json:"id"`
 	Stack  string    `json:"stack"`
 	Commit string    `json:"commit"`
 	Estado string    `json:"estado"`
 	Error  string    `json:"error,omitempty"`
-	Inicio time.Time `json:"inicio"`
+	Lote   string    `json:"lote,omitempty"`
+	Orden  int64     `json:"orden,omitempty"` // posición en la cola
+	Inicio time.Time `json:"inicio"`          // cuándo se pidió
 	Fin    time.Time `json:"fin"`
 }
 
@@ -37,9 +42,25 @@ func nuevaTarea(stack, commit string, ahora time.Time) Tarea {
 		ID:     ahora.UTC().Format("20060102T150405Z") + "-" + stack,
 		Stack:  stack,
 		Commit: commit,
-		Estado: EnCurso,
+		Estado: EnCola,
+		Orden:  ahora.UnixNano(),
 		Inicio: ahora,
 	}
+}
+
+// nuevoLote crea las tareas de varios stacks, ya ordenados, en un mismo lote.
+func nuevoLote(stacks []string, commit string, ahora time.Time) []Tarea {
+	var tareas []Tarea
+	for i, stack := range stacks {
+		t := nuevaTarea(stack, commit, ahora)
+		t.Lote = t.ID
+		if i > 0 {
+			t.Lote = tareas[0].Lote
+		}
+		t.Orden += int64(i)
+		tareas = append(tareas, t)
+	}
+	return tareas
 }
 
 // Registro guarda las tareas en una carpeta.
@@ -80,6 +101,12 @@ func (r Registro) Leer(id string) (Tarea, error) {
 	return t, json.Unmarshal(datos, &t)
 }
 
+// Existe dice si ya hay una tarea con ese id.
+func (r Registro) Existe(id string) bool {
+	_, err := os.Stat(r.ruta(id))
+	return err == nil
+}
+
 // Todas devuelve las tareas, de la más reciente a la más antigua.
 func (r Registro) Todas() ([]Tarea, error) {
 	entradas, err := os.ReadDir(r.Dir)
@@ -101,8 +128,38 @@ func (r Registro) Todas() ([]Tarea, error) {
 		}
 		tareas = append(tareas, t)
 	}
-	sort.Slice(tareas, func(i, j int) bool { return tareas[i].Inicio.After(tareas[j].Inicio) })
+	sort.Slice(tareas, func(i, j int) bool {
+		if !tareas[i].Inicio.Equal(tareas[j].Inicio) {
+			return tareas[i].Inicio.After(tareas[j].Inicio)
+		}
+		return tareas[i].Orden > tareas[j].Orden
+	})
 	return tareas, nil
+}
+
+// pendientes devuelve las tareas en cola, en el orden en que se aplican.
+func pendientes(tareas []Tarea) []Tarea {
+	var cola []Tarea
+	for _, t := range tareas {
+		if t.Estado == EnCola {
+			cola = append(cola, t)
+		}
+	}
+	sort.Slice(cola, func(i, j int) bool { return cola[i].Orden < cola[j].Orden })
+	return cola
+}
+
+// activos devuelve los stacks con una tarea en cola o en curso.
+func activos(tareas []Tarea) map[string]string {
+	resultado := map[string]string{}
+	for _, t := range tareas {
+		if t.Estado == EnCola || t.Estado == EnCurso {
+			if resultado[t.Stack] != EnCurso {
+				resultado[t.Stack] = t.Estado
+			}
+		}
+	}
+	return resultado
 }
 
 // desplegados devuelve, por stack, su última tarea correcta.

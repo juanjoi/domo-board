@@ -21,6 +21,7 @@ var plantillasFS embed.FS
 
 const (
 	intervaloBusqueda = 15 * time.Minute
+	intervaloCola     = 5 * time.Second
 	maxLog            = 256 << 10 // se muestra el final del log
 	numTareas         = 10
 )
@@ -36,6 +37,9 @@ type Servidor struct {
 	mu             sync.Mutex
 	ultimaBusqueda time.Time
 	errorBusqueda  string
+
+	// cola protege encolar y lanzar el contenedor de las tareas.
+	cola sync.Mutex
 }
 
 func nuevoServidor(cfg Config, docker *Docker) *Servidor {
@@ -55,6 +59,7 @@ func nuevoServidor(cfg Config, docker *Docker) *Servidor {
 func servir(ctx context.Context, cfg Config) error {
 	s := nuevoServidor(cfg, nuevoDocker())
 	go s.buscarPeriodicamente(ctx)
+	go s.vigilarCola(ctx)
 	srv := &http.Server{Addr: cfg.Direccion, Handler: s.rutas(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
@@ -106,6 +111,46 @@ func (s *Servidor) buscarPeriodicamente(ctx context.Context) {
 	}
 }
 
+// vigilarCola lanza el contenedor de las tareas si hay tareas en cola y no
+// está en marcha: por ejemplo, si se pidió una justo cuando el contenedor
+// terminaba, o si el panel se reinició con tareas pendientes.
+func (s *Servidor) vigilarCola(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(intervaloCola):
+			s.lanzarSiHaceFalta(ctx)
+		}
+	}
+}
+
+func (s *Servidor) lanzarSiHaceFalta(ctx context.Context) {
+	s.cola.Lock()
+	defer s.cola.Unlock()
+	if enCurso, err := s.docker.TareaEnCurso(ctx); err != nil || enCurso {
+		return
+	}
+	tareas, err := s.reg.Todas()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	cola := pendientes(tareas)
+	if len(cola) == 0 {
+		return
+	}
+	if err := s.docker.Lanzar(ctx, s.cfg); err != nil {
+		// Sin contenedor no se va a aplicar nada: se marcan como fallidas
+		// en vez de reintentarlo sin fin.
+		log.Print(err)
+		for _, t := range cola {
+			t.Estado, t.Error, t.Fin = Fallida, "No se pudo lanzar la tarea: "+err.Error(), s.ahora()
+			s.reg.Guardar(t)
+		}
+	}
+}
+
 func (s *Servidor) buscarCambios(ctx context.Context) {
 	err := s.repo.Buscar(ctx)
 	s.mu.Lock()
@@ -120,6 +165,7 @@ func (s *Servidor) buscarCambios(ctx context.Context) {
 
 type FilaStack struct {
 	Nombre      string
+	Activo      string   // en cola o en curso, si tiene una tarea pendiente
 	Enlaces     []Enlace // servicios que publica a través de Traefik
 	Desplegado  string   // commit de la última tarea correcta, vacío si no hay
 	Cambios     []Cambio
@@ -131,7 +177,9 @@ type VistaInicio struct {
 	Ultimo         string
 	Stacks         []FilaStack
 	Huerfanos      []string
+	ConCambios     []string // stacks con cambios sin desplegar
 	EnCurso        bool
+	Ocupado        bool // hay tareas en cola o en curso: la página se recarga sola
 	Tareas         []Tarea
 	UltimaBusqueda time.Time
 	Errores        []string
@@ -157,6 +205,8 @@ func (s *Servidor) inicio(w http.ResponseWriter, r *http.Request) {
 		v.Errores = append(v.Errores, err.Error())
 	}
 	v.Tareas = tareas[:min(len(tareas), numTareas)]
+	act := activos(tareas)
+	v.Ocupado = v.EnCurso || len(act) > 0
 
 	v.Ultimo, err = s.repo.Ultimo(ctx)
 	if err != nil {
@@ -177,7 +227,7 @@ func (s *Servidor) inicio(w http.ResponseWriter, r *http.Request) {
 	}
 	desp := desplegados(tareas)
 	for _, nombre := range stacks {
-		fila := FilaStack{Nombre: nombre, Desconocido: true}
+		fila := FilaStack{Nombre: nombre, Desconocido: true, Activo: act[nombre]}
 		if compose, err := s.repo.Compose(ctx, v.Ultimo, nombre); err == nil {
 			fila.Enlaces = enlaces(nombresTraefik(compose), r)
 		}
@@ -188,6 +238,9 @@ func (s *Servidor) inicio(w http.ResponseWriter, r *http.Request) {
 			fila.Desplegado = t.Commit
 			cambios, err := s.repo.Cambios(ctx, t.Commit, v.Ultimo, nombre)
 			fila.Cambios, fila.Desconocido = cambios, err != nil
+		}
+		if len(fila.Cambios) > 0 && fila.Activo == "" {
+			v.ConCambios = append(v.ConCambios, nombre)
 		}
 		v.Stacks = append(v.Stacks, fila)
 	}
@@ -205,35 +258,79 @@ func (s *Servidor) buscar(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// actualizar solo acepta un stack que exista en el commit que se vio en la
-// página: el panel controla todo el servidor y no admite parámetros libres.
+// actualizar pone en cola uno o varios stacks. Solo acepta stacks que existan
+// en el commit que se vio en la página: el panel controla todo el servidor y
+// no admite parámetros libres. Los que ya están en cola no se repiten.
 func (s *Servidor) actualizar(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	stack, commit := r.FormValue("stack"), r.FormValue("commit")
-	if !nombreValido.MatchString(stack) || !commitValido.MatchString(commit) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Formulario no válido", http.StatusBadRequest)
+		return
+	}
+	pedidos, commit := r.PostForm["stack"], r.PostFormValue("commit")
+	if len(pedidos) == 0 {
+		http.Error(w, "Elige al menos un stack", http.StatusBadRequest)
+		return
+	}
+	if !commitValido.MatchString(commit) {
 		http.Error(w, "Stack o commit no válido", http.StatusBadRequest)
 		return
 	}
 	stacks, err := s.repo.Stacks(ctx, commit)
-	if err != nil || !slices.Contains(stacks, stack) {
+	if err != nil {
 		http.Error(w, "El stack no existe en ese commit", http.StatusBadRequest)
 		return
 	}
-	if enCurso, err := s.docker.TareaEnCurso(ctx); err != nil || enCurso {
-		http.Error(w, "Ya hay una tarea en curso; espera a que termine", http.StatusConflict)
-		return
+	for _, p := range pedidos {
+		if !nombreValido.MatchString(p) || !slices.Contains(stacks, p) {
+			http.Error(w, "El stack no existe en ese commit", http.StatusBadRequest)
+			return
+		}
 	}
 
-	t := nuevaTarea(stack, commit, s.ahora())
-	if err := s.reg.Guardar(t); err != nil {
+	s.cola.Lock()
+	tareas, err := s.reg.Todas()
+	if err != nil {
+		s.cola.Unlock()
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := s.docker.Lanzar(ctx, s.cfg, t.ID); err != nil {
-		t.Estado, t.Error, t.Fin = Fallida, "No se pudo lanzar la tarea: "+err.Error(), s.ahora()
-		s.reg.Guardar(t)
+	var nuevos []string
+	enCola := map[string]bool{}
+	for _, t := range pendientes(tareas) {
+		enCola[t.Stack] = true
 	}
-	http.Redirect(w, r, "/tareas/"+t.ID, http.StatusSeeOther)
+	composes := map[string]string{}
+	for _, p := range pedidos {
+		if enCola[p] || slices.Contains(nuevos, p) {
+			continue
+		}
+		nuevos = append(nuevos, p)
+		composes[p], _ = s.repo.Compose(ctx, commit, p)
+	}
+	lote := nuevoLote(ordenarStacks(nuevos, composes), commit, s.ahora())
+	for _, t := range lote {
+		if s.reg.Existe(t.ID) {
+			s.cola.Unlock()
+			http.Error(w, "Ya se pidió "+t.Stack+" hace un momento; espera un segundo", http.StatusConflict)
+			return
+		}
+	}
+	for _, t := range lote {
+		if err := s.reg.Guardar(t); err != nil {
+			s.cola.Unlock()
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	s.cola.Unlock()
+	s.lanzarSiHaceFalta(ctx)
+
+	if len(lote) == 1 {
+		http.Redirect(w, r, "/tareas/"+lote[0].ID, http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 type VistaTarea struct {

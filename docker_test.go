@@ -16,7 +16,7 @@ func TestArgumentosTarea(t *testing.T) {
 	}
 	cfg := Config{Repo: "/docker/domo-hub", Datos: "/docker/domo-board", Rama: "main"}
 
-	got := argumentosTarea(c, cfg, "id1")
+	got := argumentosTarea(c, cfg)
 	want := []string{
 		"run", "-d", "--rm", "--name", "domo-board-tarea", "--network", "none",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
@@ -26,7 +26,7 @@ func TestArgumentosTarea(t *testing.T) {
 		"-e", "DOMO_DATOS=/docker/domo-board",
 		"-e", "DOMO_RAMA=main",
 		"-e", "TZ=Europe/Madrid",
-		"ghcr.io/juanjoi/domo-board:1.0.0", "aplicar", "id1",
+		"ghcr.io/juanjoi/domo-board:1.0.0", "aplicar",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("argumentos =\n%v\nquería\n%v", got, want)
