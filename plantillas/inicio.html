@@ -15,6 +15,7 @@
 </form>
 {{end}}
 
+{{if .Grupos}}<div class="categorias">{{end}}
 {{range .Grupos}}
 <section>
 <h2>{{.Nombre}}</h2>
@@ -30,6 +31,7 @@
 {{else}}
 <p class="suave">No hay stacks en el repositorio.</p>
 {{end}}
+{{if .Grupos}}</div>{{end}}
 
 {{if .Huerfanos}}
 <h2>Ya no están en el repositorio</h2>

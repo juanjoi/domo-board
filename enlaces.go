@@ -19,8 +19,20 @@ var (
 	// Host(`nombre.completo`)
 	hostCompleto = regexp.MustCompile("Host\\(`([A-Za-z0-9.-]+)`\\)")
 	// HostRegexp(`^nombre\.`): solo el principio del nombre, el dominio es el del panel.
-	hostPrefijo = regexp.MustCompile("HostRegexp\\(`\\^([A-Za-z0-9-]+)\\\\\\.`\\)")
+	// Categoría de un stack sin aplicación en el menú, en una etiqueta como
+	// lista (=) o como mapa (:).
+	etiquetaCategoria = regexp.MustCompile(`(?m)domo-board\.categoria\s*[=:]\s*["']?([^"'\n]*?)["']?\s*$`)
+	hostPrefijo       = regexp.MustCompile("HostRegexp\\(`\\^([A-Za-z0-9-]+)\\\\\\.`\\)")
 )
+
+// categoriaStack devuelve la categoría que declara un compose con la etiqueta
+// domo-board.categoria, o vacío si no la declara.
+func categoriaStack(compose string) string {
+	if m := etiquetaCategoria.FindStringSubmatch(compose); m != nil {
+		return strings.TrimSpace(m[1])
+	}
+	return ""
+}
 
 // nombresTraefik devuelve los nombres que publican las reglas de Traefik de un
 // compose. Los que acaban en punto son prefijos que se completan con el

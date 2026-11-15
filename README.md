@@ -18,7 +18,9 @@ Aplicación web pequeña para gestionar un hub domótico basado en Docker Compos
 - **Rejilla de aplicaciones por categorías:** cada aplicación es su icono con el nombre debajo. Las categorías, los nombres y los iconos salen de la lista del menú común (`/__menu/apps.json`), que el panel pide al servicio del menú por la red interna y guarda 30 segundos. Si el servicio no responde, usa la última lista que consiguió.
 - **Cada aplicación, con su stack:** se une al stack cuyas reglas de Traefik publican su nombre. Al pulsarla se abre la página del stack, con sus enlaces, los cambios sin desplegar, el botón *Actualizar* y sus últimas tareas. Las aplicaciones de la lista que no son de ningún stack del repositorio abren la propia aplicación.
 - **Estado en el icono:** una marca en la esquina si el stack tiene cambios sin desplegar (↑), si falló su última actualización (!) o si no se ha desplegado desde el panel (?). Mientras se actualiza, una animación de carga tapa el icono; en cola, otra más lenta. La página se recarga sola mientras haya tareas en cola o en curso.
-- **Otros stacks:** los que no tienen aplicación en el menú, como los de servicios sin web, van en un último grupo, con su inicial. Sin menú configurado, todos los stacks van en un solo grupo.
+- **Dos categorías por fila**, con hasta cuatro aplicaciones por fila en cada una; en pantallas estrechas, una categoría por fila.
+- **Stacks sin web:** un stack sin aplicación en el menú, como los de servicios sin web, puede ponerse en una categoría con la etiqueta `domo-board.categoria=<categoría>` en cualquier servicio de su `docker-compose.yml`. Tiene que ser una de las del menú, sin importar mayúsculas.
+- **Otros stacks:** los que no tienen aplicación en el menú ni categoría van en un último grupo, con su inicial. Sin menú configurado, todos los stacks van en un solo grupo.
 - **Iconos:** se cargan de `/__menu/iconos/` en el mismo nombre del panel, como en cualquier aplicación con el menú. Si no cargan, por ejemplo al entrar por un túnel SSH, se ve la inicial.
 
 ## Actualizar stacks

@@ -56,3 +56,17 @@ func TestEnlaces(t *testing.T) {
 		}
 	}
 }
+
+func TestCategoriaStack(t *testing.T) {
+	casos := map[string]string{
+		"    labels:\n      - domo-board.categoria=Infraestructura\n": "Infraestructura",
+		"    labels:\n      domo-board.categoria: \"Media\"\n":        "Media",
+		"    labels:\n      - \"domo-board.categoria=Casa\"\n":        "Casa",
+		"    labels:\n      - traefik.enable=true\n":                  "",
+	}
+	for compose, quiere := range casos {
+		if got := categoriaStack(compose); got != quiere {
+			t.Errorf("categoriaStack(%q) = %q, quiere %q", compose, got, quiere)
+		}
+	}
+}

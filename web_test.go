@@ -158,6 +158,8 @@ func TestInicioConMenu(t *testing.T) {
 		"stacks/alfa/docker-compose.yml":  regla("alfa"),
 		"stacks/beta/docker-compose.yml":  regla("beta"),
 		"stacks/gamma/docker-compose.yml": "services:\n  gamma:\n    image: gamma\n",
+		"stacks/delta/docker-compose.yml": "services:\n  delta:\n    labels:\n      - domo-board.categoria=domótica\n",
+		"stacks/eps/docker-compose.yml":   "services:\n  eps:\n    labels:\n      domo-board.categoria: Inventada\n",
 	})
 	ultimo := e.commit("cambia beta", map[string]string{"stacks/beta/docker-compose.yml": regla("beta") + "    image: beta:2\n"})
 	e.clonar()
@@ -177,7 +179,7 @@ func TestInicioConMenu(t *testing.T) {
 	s.reg.Guardar(enCurso)
 
 	cuerpo := pedir(s, "/", "panel.casa.example").Body.String()
-	orden := []string{"<h2>Familia</h2>", "Alfa", "<h2>Domótica</h2>", "Beta", "<h2>Otras</h2>", "Externa", "<h2>Otros stacks</h2>", "gamma"}
+	orden := []string{"<h2>Familia</h2>", "Alfa", "<h2>Domótica</h2>", "Beta", "delta", "<h2>Otras</h2>", "Externa", "<h2>Otros stacks</h2>", "eps", "gamma"}
 	resto := cuerpo
 	for _, esperado := range orden {
 		i := strings.Index(resto, esperado)

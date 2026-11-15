@@ -33,8 +33,9 @@ type Grupo struct {
 
 // agrupar reparte las aplicaciones del menú en sus categorías, en el orden del
 // menú y con «Otras» al final. Cada aplicación se une al stack que publica su
-// nombre en Traefik. Los stacks sin aplicación en el menú van en un último
-// grupo; sin menú, todos los stacks van en uno solo.
+// nombre en Traefik. Un stack sin aplicación en el menú va en la categoría que
+// declare con la etiqueta domo-board.categoria, si es una de las del menú, y
+// si no en un último grupo; sin menú, todos los stacks van en uno solo.
 func agrupar(lista *ListaMenu, filas []FilaStack, r *http.Request) []Grupo {
 	porNombre := map[string]int{}
 	for i, f := range filas {
@@ -74,6 +75,18 @@ func agrupar(lista *ListaMenu, filas []FilaStack, r *http.Request) []Grupo {
 				categoria = categoriaOtras
 			}
 			porCategoria[categoria] = append(porCategoria[categoria], m)
+		}
+		for _, f := range filas {
+			if usados[f.Nombre] || f.Categoria == "" {
+				continue
+			}
+			for _, c := range lista.Categorias {
+				if strings.EqualFold(c, f.Categoria) {
+					porCategoria[c] = append(porCategoria[c], mosaicoDe(f, f.Nombre, ""))
+					usados[f.Nombre] = true
+					break
+				}
+			}
 		}
 		for _, c := range orden {
 			if len(porCategoria[c]) > 0 {
