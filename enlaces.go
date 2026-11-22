@@ -22,7 +22,10 @@ var (
 	// Categoría de un stack sin aplicación en el menú, en una etiqueta como
 	// lista (=) o como mapa (:).
 	etiquetaCategoria = regexp.MustCompile(`(?m)domo-board\.categoria\s*[=:]\s*["']?([^"'\n]*?)["']?\s*$`)
-	hostPrefijo       = regexp.MustCompile("HostRegexp\\(`\\^([A-Za-z0-9-]+)\\\\\\.`\\)")
+	// Icono de un stack sin aplicación en el menú: un fichero de los iconos del
+	// menú común, en una etiqueta como lista (=) o como mapa (:).
+	etiquetaIcono = regexp.MustCompile(`(?m)domo-board\.icono\s*[=:]\s*["']?([A-Za-z0-9._-]+\.(?:svg|png|webp))["']?\s*$`)
+	hostPrefijo   = regexp.MustCompile("HostRegexp\\(`\\^([A-Za-z0-9-]+)\\\\\\.`\\)")
 	// Un dominio: nombres de letras, cifras y guiones separados por puntos.
 	dominioValido = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$`)
 )
@@ -34,6 +37,16 @@ func categoriaStack(compose string) string {
 		return strings.TrimSpace(m[1])
 	}
 	return ""
+}
+
+// iconoStack devuelve la ruta del icono que declara un compose con la etiqueta
+// domo-board.icono, entre los del menú común, o vacío si no lo declara.
+func iconoStack(compose string) string {
+	m := etiquetaIcono.FindStringSubmatch(compose)
+	if m == nil || strings.HasPrefix(m[1], ".") {
+		return ""
+	}
+	return rutaIconos + m[1]
 }
 
 // nombresTraefik devuelve los nombres que publican las reglas de Traefik de un

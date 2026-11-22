@@ -171,6 +171,7 @@ type FilaStack struct {
 	Activo      string   // en cola o en curso, si tiene una tarea pendiente
 	Nombres     []string // nombres que publica en Traefik
 	Categoria   string   // la de domo-board.categoria, para los stacks sin aplicación en el menú
+	Icono       string   // el de domo-board.icono, para los stacks sin aplicación en el menú
 	Enlaces     []Enlace // servicios que publica a través de Traefik
 	Desplegado  string   // commit de la última tarea correcta, vacío si no hay
 	Cambios     []Cambio
@@ -238,6 +239,7 @@ func (s *Servidor) estado(ctx context.Context, r *http.Request, solo string) Est
 		if compose, err := s.repo.Compose(ctx, v.Ultimo, nombre); err == nil {
 			fila.Nombres = nombresTraefik(compose)
 			fila.Categoria = categoriaStack(compose)
+			fila.Icono = iconoStack(compose)
 			fila.Enlaces = enlaces(fila.Nombres, r)
 		}
 		if t, ok := ultimas[nombre]; ok {

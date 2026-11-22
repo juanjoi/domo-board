@@ -91,3 +91,21 @@ func TestDominioDe(t *testing.T) {
 		}
 	}
 }
+
+func TestIconoStack(t *testing.T) {
+	casos := map[string]string{
+		"    labels:\n      - domo-board.icono=libretranslate.svg\n":      "/__menu/iconos/libretranslate.svg",
+		"    labels:\n      domo-board.icono: \"postgres.png\"\n":         "/__menu/iconos/postgres.png",
+		"    labels:\n      - \"domo-board.icono=mqtt.webp\"\n":           "/__menu/iconos/mqtt.webp",
+		"    labels:\n      - domo-board.icono=../secreto.svg\n":          "",
+		"    labels:\n      - domo-board.icono=..svg\n":                   "",
+		"    labels:\n      - domo-board.icono=icono.exe\n":               "",
+		"    labels:\n      - domo-board.icono=https://x.example/a.svg\n": "",
+		"    labels:\n      - traefik.enable=true\n":                      "",
+	}
+	for compose, quiere := range casos {
+		if got := iconoStack(compose); got != quiere {
+			t.Errorf("iconoStack(%q) = %q, quiere %q", compose, got, quiere)
+		}
+	}
+}

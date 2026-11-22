@@ -82,7 +82,7 @@ func agrupar(lista *ListaMenu, filas []FilaStack, r *http.Request) []Grupo {
 			}
 			for _, c := range lista.Categorias {
 				if strings.EqualFold(c, f.Categoria) {
-					porCategoria[c] = append(porCategoria[c], mosaicoDe(f, f.Nombre, ""))
+					porCategoria[c] = append(porCategoria[c], mosaicoDe(f, f.Nombre, f.Icono))
 					usados[f.Nombre] = true
 					break
 				}
