@@ -79,6 +79,22 @@ func TestActualizar(t *testing.T) {
 	}
 }
 
+func TestActualizarGuardaDominio(t *testing.T) {
+	casos := map[string]string{"panel.casa.example": "casa.example", "192.168.1.2:8099": ""}
+	for host, quiero := range casos {
+		s, _, commit := servidorDePrueba(t)
+		r := httptest.NewRequest(http.MethodPost, "/actualizar", strings.NewReader(url.Values{"stack": {"alfa"}, "commit": {commit}}.Encode()))
+		r.Host = host
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		s.rutas().ServeHTTP(w, r)
+		tareas, _ := s.reg.Todas()
+		if w.Code != http.StatusSeeOther || len(tareas) != 1 || tareas[0].Dominio != quiero {
+			t.Errorf("%s: código %d, tareas %v, quería dominio %q", host, w.Code, tareas, quiero)
+		}
+	}
+}
+
 func TestActualizarRechaza(t *testing.T) {
 	s, falso, commit := servidorDePrueba(t)
 	casos := []struct {

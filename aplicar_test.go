@@ -55,3 +55,14 @@ func TestVaciarCola(t *testing.T) {
 		t.Errorf("log de b = %q", log)
 	}
 }
+
+func TestEntornoCompose(t *testing.T) {
+	base := []string{"PATH=/bin"}
+	if e := entornoCompose(base, Tarea{}); !slices.Equal(e, base) {
+		t.Errorf("sin dominio: %v", e)
+	}
+	e := entornoCompose(base, Tarea{Dominio: "casa.example"})
+	if !slices.Equal(e, []string{"PATH=/bin", "DOMINIO=casa.example"}) || len(base) != 1 {
+		t.Errorf("con dominio: %v (base %v)", e, base)
+	}
+}

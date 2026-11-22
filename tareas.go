@@ -26,15 +26,18 @@ var idValido = regexp.MustCompile(`^\d{8}T\d{6}Z-[a-z0-9][a-z0-9_-]*$`)
 // el mismo fichero. Las tareas que se piden juntas forman un lote: se aplican
 // en orden y, si una falla, se cancelan las siguientes del lote.
 type Tarea struct {
-	ID     string    `json:"id"`
-	Stack  string    `json:"stack"`
-	Commit string    `json:"commit"`
-	Estado string    `json:"estado"`
-	Error  string    `json:"error,omitempty"`
-	Lote   string    `json:"lote,omitempty"`
-	Orden  int64     `json:"orden,omitempty"` // posición en la cola
-	Inicio time.Time `json:"inicio"`          // cuándo se pidió
-	Fin    time.Time `json:"fin"`
+	ID     string `json:"id"`
+	Stack  string `json:"stack"`
+	Commit string `json:"commit"`
+	// Dominio desde el que se abrió el panel al pedirla; llega a Docker Compose
+	// como DOMINIO.
+	Dominio string    `json:"dominio,omitempty"`
+	Estado  string    `json:"estado"`
+	Error   string    `json:"error,omitempty"`
+	Lote    string    `json:"lote,omitempty"`
+	Orden   int64     `json:"orden,omitempty"` // posición en la cola
+	Inicio  time.Time `json:"inicio"`          // cuándo se pidió
+	Fin     time.Time `json:"fin"`
 }
 
 func nuevaTarea(stack, commit string, ahora time.Time) Tarea {

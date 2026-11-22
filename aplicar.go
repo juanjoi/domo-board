@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"time"
 )
 
@@ -107,7 +108,21 @@ func pasos(ctx context.Context, cfg Config, t Tarea, salida io.Writer) error {
 	args := []string{"compose", "-f", compose, "up", "-d", "--remove-orphans", "--wait", "--wait-timeout", "300"}
 	fmt.Fprintf(salida, "$ docker %v\n", args)
 	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Env = entornoCompose(os.Environ(), t)
+	if t.Dominio != "" {
+		fmt.Fprintf(salida, "DOMINIO=%s\n", t.Dominio)
+	}
 	cmd.Stdout = salida
 	cmd.Stderr = salida
 	return cmd.Run()
+}
+
+// entornoCompose añade al entorno el dominio de la tarea como DOMINIO, para
+// que los stacks lo usen en su configuración sin guardarlo en el repositorio.
+// Sin dominio, Docker Compose no recibe la variable.
+func entornoCompose(entorno []string, t Tarea) []string {
+	if t.Dominio == "" {
+		return entorno
+	}
+	return append(slices.Clone(entorno), "DOMINIO="+t.Dominio)
 }

@@ -379,6 +379,9 @@ func (s *Servidor) actualizar(w http.ResponseWriter, r *http.Request) {
 		composes[p], _ = s.repo.Compose(ctx, commit, p)
 	}
 	lote := nuevoLote(ordenarStacks(nuevos, composes), commit, s.ahora())
+	for i := range lote {
+		lote[i].Dominio = dominioDe(r.Host)
+	}
 	for _, t := range lote {
 		if s.reg.Existe(t.ID) {
 			s.cola.Unlock()

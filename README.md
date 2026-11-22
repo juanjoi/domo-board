@@ -33,6 +33,7 @@ Aplicación web pequeña para gestionar un hub domótico basado en Docker Compos
 - **En orden:** los stacks que se piden juntos forman un lote. Dentro del lote van primero los que crean redes que otros del lote usan como externas, según la sección `networks` de cada compose; el resto, por orden alfabético. Si uno falla, se cancelan los siguientes del lote.
 - **En un contenedor efímero:** la cola la vacía un contenedor aparte, con la imagen y los montajes del panel y sin red, para que termine aunque el panel se reinicie al actualizarse a sí mismo. Solo hay uno a la vez; el panel lo arranca cuando hay tareas en cola y no está en marcha.
 - **Enlaza los servicios publicados:** lee las reglas de los routers de Traefik en las etiquetas de cada compose. `` Host(`nombre.completo`) `` enlaza a ese nombre; `` HostRegexp(`^nombre\.`) `` enlaza a ese nombre con el dominio desde el que se abre el panel. Si el panel se abre por IP o por un túnel SSH, estos últimos no tienen enlace. Las demás reglas se ignoran.
+- **Pasa el dominio:** el dominio desde el que se abre el panel al pedir la actualización llega a `docker compose` como la variable `DOMINIO`, para que los stacks lo usen en su configuración (direcciones de enlaces y correos) sin guardarlo en el repositorio. Si el panel se abre por IP o por un túnel SSH, la variable no se pasa.
 - **Sin parámetros libres:** tiene acceso al socket de Docker y, por tanto, control total del servidor, así que solo acepta stacks que existan en el repositorio y rechaza formularios enviados desde otras webs.
 
 ## Uso

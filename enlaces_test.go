@@ -70,3 +70,24 @@ func TestCategoriaStack(t *testing.T) {
 		}
 	}
 }
+
+func TestDominioDe(t *testing.T) {
+	casos := map[string]string{
+		"panel.casa.example":      "casa.example",
+		"Panel.Casa.Example:8080": "casa.example",
+		"panel.internal":          "internal",
+		"panel":                   "",
+		"127.0.0.1:8099":          "",
+		"[::1]:8099":              "",
+		"panel.casa.example.":     "",
+		"panel.casa_example":      "",
+		"panel.-casa.example":     "",
+		"panel.casa..example":     "",
+		"panel.casa$(id).example": "",
+	}
+	for host, quiero := range casos {
+		if d := dominioDe(host); d != quiero {
+			t.Errorf("dominioDe(%q) = %q, quería %q", host, d, quiero)
+		}
+	}
+}

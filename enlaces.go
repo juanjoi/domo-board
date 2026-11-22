@@ -23,6 +23,8 @@ var (
 	// lista (=) o como mapa (:).
 	etiquetaCategoria = regexp.MustCompile(`(?m)domo-board\.categoria\s*[=:]\s*["']?([^"'\n]*?)["']?\s*$`)
 	hostPrefijo       = regexp.MustCompile("HostRegexp\\(`\\^([A-Za-z0-9-]+)\\\\\\.`\\)")
+	// Un dominio: nombres de letras, cifras y guiones separados por puntos.
+	dominioValido = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$`)
 )
 
 // categoriaStack devuelve la categoría que declara un compose con la etiqueta
@@ -74,7 +76,8 @@ func enlaces(nombres []string, r *http.Request) []Enlace {
 }
 
 // dominioDe quita el primer nombre del host del panel: de panel.casa.example
-// devuelve casa.example.
+// devuelve casa.example. Si lo que queda no es un dominio válido, devuelve
+// vacío: la cabecera Host la manda el navegador.
 func dominioDe(host string) string {
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
@@ -82,8 +85,8 @@ func dominioDe(host string) string {
 	if net.ParseIP(host) != nil {
 		return ""
 	}
-	_, dominio, ok := strings.Cut(host, ".")
-	if !ok {
+	_, dominio, ok := strings.Cut(strings.ToLower(host), ".")
+	if !ok || !dominioValido.MatchString(dominio) {
 		return ""
 	}
 	return dominio
